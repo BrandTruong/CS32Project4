@@ -70,7 +70,7 @@ DeliveryResult PointToPointRouterImpl::generatePointToPointRoute(
     gScore.associate(start, 0);
     //fScore
     ExpandableHashMap<GeoCoord, double> fScore;
-    fScore.associate(start, distanceEarthKM(start, end));
+    fScore.associate(start, distanceEarthMiles(start, end));
 
     //A* Algorithm, prioritizes the lowest distance first
     while (!openSet.empty()) {
@@ -95,12 +95,12 @@ DeliveryResult PointToPointRouterImpl::generatePointToPointRoute(
         openSet.pop();
         m_sm->getSegmentsThatStartWith(current, segs);
         for (auto neighbor = segs.begin(); neighbor != segs.end(); neighbor++) {
-            double tentative_gScore = *gScore.find(current) + distanceEarthKM(current, neighbor->end);
+            double tentative_gScore = *gScore.find(current) + distanceEarthMiles(current, neighbor->end);
             if (gScore.find(neighbor->end) == nullptr || tentative_gScore < *gScore.find(neighbor->end)) {
                 // Records better paths than previous ones
                 came_from.associate(neighbor->end, current);
                 gScore.associate(neighbor->end, tentative_gScore);
-                fScore.associate(neighbor->end, tentative_gScore + distanceEarthKM(neighbor->end, end));
+                fScore.associate(neighbor->end, tentative_gScore + distanceEarthMiles(neighbor->end, end));
                 openSet.push(LowestFScore(neighbor->end, *fScore.find(neighbor->end)));
             }
         }

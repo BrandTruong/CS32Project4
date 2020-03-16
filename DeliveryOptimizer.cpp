@@ -1,8 +1,9 @@
 #include "provided.h"
 #include <vector>
 #include <iostream>
-#include "ExpandableHashMap.h"
-#include <queue>
+#include <cmath>
+#include <cstdlib>
+#include <random>
 using namespace std;
 
 class DeliveryOptimizerImpl
@@ -16,20 +17,22 @@ public:
         double& oldCrowDistance,
         double& newCrowDistance) const;
 private:
-    struct DelivCrow {
-        DelivCrow(GeoCoord coord1, GeoCoord coord2, double dist) : m_start(coord1), m_end(coord2), m_dist(dist) {}
-        GeoCoord m_start;
-        GeoCoord m_end;
-        double m_dist;
-    };
-    struct CompareDist {
-        bool operator()(DelivCrow const& p1, DelivCrow const& p2)
-        {
-            // return "true" if "p1" is ordered  
-            // before "p2", for example: 
-            return p1.m_dist < p2.m_dist;
-        }
-    };
+    double crowDistance(GeoCoord depot, const vector<DeliveryRequest> deliveries) const;
+    inline int randInt(int min, int max) const
+    {
+        if (max < min)
+            std::swap(max, min);
+        static std::random_device rd;
+        static std::default_random_engine generator(rd());
+        std::uniform_int_distribution<> distro(min, max);
+        return distro(generator);
+    }
+    inline void swap(int curr, int rand, vector<DeliveryRequest>& deliveries) const
+    {
+        DeliveryRequest temp(deliveries[curr].item, deliveries[curr].location);
+        deliveries[curr] = deliveries[rand];
+        deliveries[rand] = temp;
+    }
 };
 
 DeliveryOptimizerImpl::DeliveryOptimizerImpl(const StreetMap* sm)
@@ -46,61 +49,45 @@ void DeliveryOptimizerImpl::optimizeDeliveryOrder(
     double& oldCrowDistance,
     double& newCrowDistance) const
 {
-    //Makes sure Distance are 0
-    oldCrowDistance = newCrowDistance = 0;
+    //Calculates oldCrow
+    oldCrowDistance = crowDistance(depot, deliveries);
 
-    //Nearest Neighbor Approach
-    GeoCoord coord1 = depot;
-
-
-    //Calculates oldCrowDistance
-    for (int i = 0; i < (int) deliveries.size(); i++) {
-        GeoCoord coord2 = deliveries[i].location;
-        double currentDist = distanceEarthMiles(coord1, coord2);
-        oldCrowDistance += currentDist;
-        coord1 = coord2;
-    }
-
-    //Reorganizes vector using pointers
-    vector<DeliveryRequest*> reorganized;
-    coord1 = depot; //Previous location
-    DeliveryRequest* nextLocation;
+    //Pesudo-random based on simulated annealing
     int n = 0;
+    int heat = (int) deliveries.size() / 2;
+    double currentDist = oldCrowDistance;
     while (n < (int) deliveries.size()) {
-        nextLocation = &deliveries[0]; //reset next location to default first value
-        double minDist = distanceEarthMiles(coord1, nextLocation->location);
-        for (int j = 0; j < (int) deliveries.size(); j++) { //Finds closest city
-            double currentDist = distanceEarthMiles(coord1, deliveries[j].location);
-            if (minDist > currentDist) {
-                bool duplicate = false;
-                for (int i = 0; i < (int) reorganized.size(); i++) {
-                    if (reorganized[i] == &deliveries[j]) { //Same Address == already sorted, skip
-                        duplicate = true;
-                    }
-                }
-                if (!duplicate) {
-                    nextLocation = &deliveries[j]; //Closest city to previous delivery point
-                }
+        for (int i = 0; i < (int)deliveries.size(); i++) { //Swaps around current i with a random other deliveryrequest
+            int curr = n % deliveries.size();
+            int rand = randInt(0, deliveries.size() - 1);
+            swap(curr, rand, deliveries);
+            newCrowDistance = crowDistance(depot, deliveries);
+            if (newCrowDistance - currentDist > 0 && randInt(0, deliveries.size()) >= heat) { //checks if the permmutation is more efficient
+                swap(rand, curr, deliveries); //if not efficient then chance to swap back to original or keep this permutation
+            }
+            else {
+                currentDist = newCrowDistance; 
             }
         }
-        //Found closest city, put in order
-        reorganized.push_back(nextLocation);
-        coord1 = nextLocation->location;
-        newCrowDistance += minDist;
+        heat /= 2; //change heat so less likely to choose a random permutation that is less efficient as we loop more
         n++;
     }
-    //Back to Depot
-    oldCrowDistance += distanceEarthMiles(depot, deliveries[deliveries.size() - 1].location); 
-    newCrowDistance += distanceEarthMiles(reorganized[reorganized.size()-1]->location, depot);
-    cerr << "oldCrowDistance is " << oldCrowDistance << endl << "newCrowDistance is " << newCrowDistance << endl;
-    cerr << "Reorganized vector is size " << reorganized.size() << " and original is " << deliveries.size() << endl;
-    //Reorganize original vector
-    for (int i = 0; i < (int) deliveries.size(); i++) {
-        DeliveryRequest m(deliveries[i].item, deliveries[i].location); //holds replaced value
-        int temp = reorganized[i] - &deliveries[0]; //Position of reorganized[i]
-        deliveries[i] = *reorganized[i]; //Swaps Delivery requests
-        deliveries[temp] = m;
+    std::cerr << "oldCrowDistance is " << oldCrowDistance << endl << "newCrowDistance is " << newCrowDistance << endl;
+}
+
+double DeliveryOptimizerImpl::crowDistance(GeoCoord depot, const vector<DeliveryRequest> deliveries) const
+{
+    GeoCoord coord1 = depot;
+    double dist = 0;
+    //Calculates oldCrowDistance
+    for (int i = 0; i < (int)deliveries.size(); i++) {
+        GeoCoord coord2 = deliveries[i].location;
+        double currentDist = distanceEarthMiles(coord1, coord2);
+        dist += currentDist;
+        coord1 = coord2;
     }
+    dist += distanceEarthMiles(depot, coord1);
+    return dist;
 }
 
 //******************** DeliveryOptimizer functions ****************************

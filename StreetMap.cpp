@@ -85,13 +85,11 @@ bool StreetMapImpl::getSegmentsThatStartWith(const GeoCoord& gc, vector<StreetSe
     const vector<StreetSegment>* vptr = m_segments.find(gc); //Finds start Coordinate
     if (vptr != nullptr) {
         segs.clear(); //start with empty vector if found
-        cerr << "Found segments" << endl;
         for (auto ptr = vptr->cbegin(); ptr != vptr->cend(); ptr++) { //Pushes entire vector to segs
             segs.push_back(*ptr);
         }
         return true;
     }
-    cerr << "Didn't find segments" << endl;
     return false;  //unchanged vector, no such coord
 }
 
